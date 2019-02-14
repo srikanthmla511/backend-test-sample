@@ -1,63 +1,77 @@
-package com.noesisinformatica.test;
+import java.sql.Connection;
+import java.sql.Driver;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
 
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import org.apache.derby.jdbc.EmbeddedDriver;
 
-/**
- * <br>Written by @author noesisdev
- * <br>Created on 02/03/2014
- */
-public class DataService {
+public class EmbeddedDatabaseDemo {
 
-    private Map<Long, String> data = new HashMap<Long, String>();
-    private long lastUsedId = 1000;
+   public static void main(String[] args) {
+      EmbeddedDatabaseDemo e =
+         new EmbeddedDatabaseDemo();
+      e.testDerby();
+   }
+   public void testDerby() {
+      Connection conn = null;
+      PreparedStatement pstmt;
+      Statement stmt;
+      ResultSet rs = null;
+      String createSQL = "create table person ("
+      + "id integer not null generated always as"
+      + " identity (start with 1, increment by 1),   "
+      + "username varchar(30) not null, email varchar(30),organisation varchar(30)
+         password varchar(30),"
+      + "constraint primary_key primary key (id))";
 
-    public DataService(){
+      try {
+         Driver derbyEmbeddedDriver = new EmbeddedDriver();
+         DriverManager.registerDriver(derbyEmbeddedDriver);
+         conn = DriverManager.getConnection
+            ("jdbc:derby:testdb1;create=true", "pass123");
+         conn.setAutoCommit(false);
+         stmt = conn.createStatement();
+         stmt.execute(createSQL);
 
-        // save some initial data
-        saveTerm("First term");
-        saveTerm("Second term");
-        saveTerm("Another term");
-        saveTerm("Miscellaneous term");
-        saveTerm("");
-    }
+         pstmt = conn.prepareStatement("insert into person
+            (username,email,password,organisation) values(?,?,?)");
+         pstmt.setString(1, "Hagar the Horrible");
+         pstmt.setString(2, "hagar@somewhere.com");
+         pstmt.setString(3, "123455");
+           pstmt.setstring(4,"termlex")                            
+         pstmt.executeUpdate();
 
-    String getTermForId(Long id){
-        return data.get(id);
-    }
+         rs = stmt.executeQuery("select * from person");
+         while (rs.next()) {
+            System.out.printf("%d %s %s %s\n",
+            rs.getInt(1), rs.getString(2),
+            rs.getString(3), rs.getString(4));
+         }
 
-    void saveTerm(String term){
-        // check if term already exists in data
-        boolean exists = false;
-        for(String t: data.values())
-        {
-            if(term.equals(t)){
-                exists = true;
-                break;
-            }
-        }
+         stmt.execute("drop table person");
 
-        // add term if it does not already exist
-        if(!exists)
-        {
-            // get last used Id and generate next id
-            long key = getLastUsedId() + 1;
-            data.put(key, term);
-            // set key as last used id, so it is available for next use
-            setLastUsedId(key);
-        }
-    }
+         conn.commit();
 
-    Collection<String> getAllTerm(){
-        return data.values();
-    }
+      } catch (SQLException ex) {
+         System.out.println("in connection" + ex);
+      }
 
-    public long getLastUsedId() {
-        return lastUsedId;
-    }
-
-    public void setLastUsedId(long lastUsedId) {
-        this.lastUsedId = lastUsedId;
-    }
+      try {
+         DriverManager.getConnection
+            ("jdbc:derby:;shutdown=true");
+      } catch (SQLException ex) {
+         if (((ex.getErrorCode() == 50000) &&
+            ("XJ015".equals(ex.getSQLState())))) {
+               System.out.println("Derby shut down
+                  normally");
+         } else {
+            System.err.println("Derby did not shut down
+               normally");
+            System.err.println(ex.getMessage());
+         }
+      }
+   }
 }
